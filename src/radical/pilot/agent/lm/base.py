@@ -37,7 +37,9 @@ class LaunchMethod(object):
       # 'PATH',
       # 'PYTHONPATH',
       # 'PYTHON_DIR',
-      # 'RADICAL_PILOT_PROFILE'
+       'LMOD_CMD',
+       'LMOD_SYSTEM_DEFAULT_MODULES',
+       'RADICAL_PILOT_PROFILE'
     ]
 
     # --------------------------------------------------------------------------

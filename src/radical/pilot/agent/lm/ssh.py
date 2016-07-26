@@ -75,9 +75,12 @@ class SSH(LaunchMethod):
         else:
             task_command = task_exec
 
+        self._log.debug('Task Launcher Env Var: %s',self.EXPORT_ENV_VARIABLES)
+        self._log.debug('OS Env Var: %s',os.environ)
         # Pass configured and available environment variables to the remote shell
         export_vars = ' '.join(['%s=%s' % (var, os.environ[var]) for var in self.EXPORT_ENV_VARIABLES if var in os.environ])
 
+        self._log.debug('SSH env: %s',export_vars)
         # Command line to execute launch script via ssh on host
         ssh_hop_cmd = "%s %s %s %s" % (self.launch_command, host, export_vars, launch_script_hop)
 
