@@ -95,7 +95,7 @@ class Session(rs.Session):
         # initialize the base class (saga session)
         rs.Session.__init__(self)
 
-        # if a config is given, us its values:
+        # if a config is given, use it
         if cfg:
             self._cfg = copy.deepcopy(cfg)
         else:

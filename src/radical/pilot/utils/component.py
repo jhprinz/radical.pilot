@@ -163,7 +163,8 @@ class Component(mp.Process):
 
         # we always need an UID
         if not hasattr(self, 'uid'):
-            raise ValueError('class which inherits Component needs a uid')
+            self._uid = ru.generate_id(self.__class__.__name__ + '.%(counter)s', 
+                    ru.ID_CUSTOM)
 
         # state we carry over the fork
         self._started   = False
