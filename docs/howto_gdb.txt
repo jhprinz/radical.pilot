@@ -31,6 +31,7 @@ pip install .
 cd ~/radical.pilot
 pip install .
 
+sudo sh -c 'echo 0 > /proc/sys/kernel/yama/ptrace_scope'
 python-dbg examples/00_getting_started.py
 
 
