@@ -140,7 +140,7 @@ class RoundRobin(UMGRSchedulingComponent):
             # advance all units
             self.advance(units_fail, rps.FAILED, publish=True, push=False)
             self.advance(units_ok,   rps.UMGR_STAGING_INPUT_PENDING, 
-                         publish=True, push=True)
+                                                 publish=True, push=True)
 
 
 # ------------------------------------------------------------------------------

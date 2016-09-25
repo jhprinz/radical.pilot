@@ -201,3 +201,31 @@ tmp:
   - pilots canceled but state is not picked up during shutdown
 
 
+================================================================================
+
+  - watcher thread:
+    - is a daemon thread so that it finishes on its own when the main thread
+      dies
+    - watches other threads and processes: if any of them dies, it has two
+      options (configurable):
+      - set an event
+      - send sigterm 
+  - make watcher thread a daemon so that it stops whenever main stops
+  - watcher thread will send SIGTERM to os.getpid() on termination
+  - what to do on parent thread watcher or component watcher?
+
+  - add bridges as watchables?
+
+
+  - document that some calls in threads may not get interrupted during
+    termination, amongst others because of
+    http://stackoverflow.com/questions/3582226/recv-is-not-interrupted-by-a-signal-in-multithreaded-environment#answer-3800915 
+
+  - threads and signals: 
+    https://bugs.python.org/issue5315
+    https://bugs.python.org/issue21895
+    NOTE: we can't ever use a SIGCHLD handler:
+          a parent in a blocking call my never get the signal
+
+
+

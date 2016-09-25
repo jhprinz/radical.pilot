@@ -241,7 +241,10 @@ class Default(PMGRLaunchingComponent):
                 pilot = self._pilots[pid]['pilot']
                 job   = self._pilots[pid]['job']
                 to_advance.append(pilot)
-                tc.add(job)
+
+                # FIXME
+                print 'cancel %s' % pid
+                # tc.add(job)
 
         tc.cancel()
         tc.wait()

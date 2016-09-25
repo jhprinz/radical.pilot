@@ -67,12 +67,10 @@ class Controller(object):
            }
 
         where the respective number of component instances will be created.
-        The controller creation will stall until all components are started,
-        which is done via a barrier on respective 'alive' messages on the
-        'control_pubsub'.  After creation, the controller will issue heartbeat
-        signals on the same pubsub, in the expectation that the components will
-        self-destruct if they miss that heartbeat, ie. in the case of unexpected
-        controller failer or unclean shutdown.
+        After creation, the controller will issue heartbeat signals on the same
+        pubsub, in the expectation that the components will self-destruct if
+        they miss that heartbeat, ie. in the case of unexpected controller
+        failer or unclean shutdown.
 
         Components and Bridges will get passed a copy of the config on creation.
         Components will also get passed a copy of the bridge addresses dict.
@@ -82,6 +80,10 @@ class Controller(object):
         `__del__()`, and thus must be invoked explicitly.
         """
 
+        # this method can only be called from the main thread
+        self_thread = mt.current_thread()
+        assert(self_thread.name == 'MainThread')
+        
         assert(cfg['owner']), 'controller config always needs an "owner"'
 
         self._session = session
@@ -119,11 +121,8 @@ class Controller(object):
         self._bridges_to_watch    = list()
         self._components_to_watch = list()
 
-        # we will later subscribe to the ctrl pubsub -- keep a handle
-        self._ctrl_sub = None
-
         # control thread activities
-        self._term     = mt.Event()
+        self._term = mt.Event()
 
         # set up for eventual heartbeat sending/receiving
         self._heartbeat_interval = self._ctrl_cfg.get('heartbeat_interval',  10)
@@ -189,35 +188,30 @@ class Controller(object):
     #
     def stop(self):
 
-      # ru.print_stacktrace()
+        # this method can only be called from the main thread
+        self_thread = mt.current_thread()
+        assert(self_thread.name == 'MainThread')
 
-        # avoid races with watcher thread
+        # let all threads know whats up...
         self._term.set()
 
-        self_thread = mt.current_thread()
         self._log.debug('%s stopped', self.uid)
 
         if self._heartbeat_thread:
             self._log.debug('%s stop    hbeat', self.uid)
             self._heartbeat_term.set()
             self._log.debug('%s stopped hbeat', self.uid)
-            if self._heartbeat_thread != self_thread:
-                self._log.debug('%s join    hbeat', self.uid)
-                self._heartbeat_thread.join()
-                self._log.debug('%s joined  hbeat', self.uid)
-            else:
-                self._log.debug('%s stop as hbeat', self.uid)
+            self._log.debug('%s join    hbeat', self.uid)
+            self._heartbeat_thread.join()
+            self._log.debug('%s joined  hbeat', self.uid)
 
         if self._watcher_thread:
             self._log.debug('%s stop    watch', self.uid)
             self._watcher_term.set()
             self._log.debug('%s stopped watch', self.uid)
-            if self._watcher_thread != self_thread:
-                self._log.debug('%s join    watch', self.uid)
-                self._watcher_thread.join()
-                self._log.debug('%s joined  watch', self.uid)
-            else:
-                self._log.debug('%s stop as watch', self.uid)
+            self._log.debug('%s join    watch', self.uid)
+            self._watcher_thread.join()
+            self._log.debug('%s joined  watch', self.uid)
 
         # we first stop all components (and sub-agents), and only then tear down
         # the communication bridges.  That way, the bridges will be available
@@ -232,16 +226,10 @@ class Controller(object):
 
             for t in to_stop_list:
                 self._log.debug('%s join    %s', self.uid, t.name)
-                if t != self_thread:
-                    t.join()
+                t.join()
                 self._log.debug('%s joined  %s', self.uid, t.name)
 
         self._log.debug('%s stopped', self.uid)
-
-        if not ru.is_main_thread():
-            # only the main thread should survive
-            self._log.debug('%s exit thread', self.uid)
-            sys.exit()
 
 
     # --------------------------------------------------------------------------
@@ -256,6 +244,10 @@ class Controller(object):
         address map is passed on as part of the component config,
         """
 
+        # this method can only be called from the main thread
+        self_thread = mt.current_thread()
+        assert(self_thread.name == 'MainThread')
+        
         # we *always* need bridges defined in the config, at least the should be
         # the addresses for the control and log bridges (or we start them)
         assert(self._ctrl_cfg['bridges'])
@@ -343,14 +335,6 @@ class Controller(object):
                 self._heartbeat_thread.start()
 
 
-        # before we go on to start components, we also register for alive
-        # messages, otherwise those messages can arrive before we are able to
-        # get them.
-        addr = self._ctrl_cfg['bridges'][rpc.CONTROL_PUBSUB]['addr_out']
-        self._ctrl_sub = rpu_Pubsub(self._session, rpc.CONTROL_PUBSUB, rpu_PUBSUB_SUB, 
-                                    self._ctrl_cfg, addr=addr)
-        self._ctrl_sub.subscribe(rpc.CONTROL_PUBSUB)
-
         self._log.debug('start_bridges done')
 
 
@@ -358,8 +342,12 @@ class Controller(object):
     #
     def _start_components(self):
 
+        # this method can only be called from the main thread
+        self_thread = mt.current_thread()
+        assert(self_thread.name == 'MainThread')
+        
         # at this point we know that bridges have been started, and we can use
-        # the control pubsub for heartbeats and alive messages.
+        # the control pubsub for heartbeat messages.
 
         self._log.debug('start comps: %s', self._comp_cfg)
       # print 'start comps: %s' % self._comp_cfg
@@ -367,7 +355,6 @@ class Controller(object):
         if not self._comp_cfg:
             return
 
-        assert(self._ctrl_sub)
         assert('heart'   in self._ctrl_cfg)
         assert('bridges' in self._ctrl_cfg )
 
@@ -408,8 +395,7 @@ class Controller(object):
 
                 comps.append(comp)
 
-        # components are started -- we now will trigger the startup syncing (to
-        # get alive messages from them), and then get them added to the watcher
+        # components are started -- get them added to the watcher
         self.add_watchables(comps)
 
 
@@ -419,21 +405,21 @@ class Controller(object):
         """
         This method allows to inject objects into the set of things this
         controller is watching.  Only those object types can be added which
-            - issue 'alive' notifications
-            - expose pull(), stop() and join() methods.
-        Such objects would be components and sub-agents -- but not communication
-        bridges (no alive notifications).
+        expose pull(), stop() and join() methods.
+        Such objects would be components, sub-agents and bridges.
         """
+
+        # this method can only be called from the main thread
+        self_thread = mt.current_thread()
+        assert(self_thread.name == 'MainThread')
         
-        # for a given set of things, we check the control channel for 'alive'
-        # messages from these things (addressed to the owner (or us), and from
-        # thing.name.  Once that is received within timeout (10sec), we add the
-        # thing to the list of watch items, which will be automatically be
-        # picked up by the watcher thread (which we start also, once).
+        # For a given set of things, add the thing to the list of watch items,
+        # which will be automatically be picked up by the watcher thread (which
+        # we start also, once).
         #
         # Anything being added here needs: a 'name' property, a 'poll' method
-        # (for the watcher to check state), and a 'stop' method (to shut the
-        # thing down on termination).
+        # (for the watcher to check state), and 'stop' and 'join' methods (to 
+        # shut the thing down on termination).
         #
         # Once control is passed to this controller, the callee is not supposed
         # to handle the goven things anymore
@@ -445,97 +431,13 @@ class Controller(object):
             things = [things]
 
         for thing in things:
-
             assert(thing.name)
             assert(thing.poll)
             assert(thing.stop)
+            assert(thing.join)
 
-        # the things are assumed started at this point -- we just want to
-        # make sure that they are up and running, and thus wait for alive
-        # messages on the control pubsub, for a certain time.  If we don't hear
-        # back from them in time, we consider startup to have failed, and shut
-        # down.
-        timeout = 60
-        start   = time.time()
-
-        # we register 'alive' messages earlier.  Whenever an 'alive' message
-        # arrives, we check if a subcomponent spawned by us is the origin.  If
-        # that is the case, we record the component as 'alive'.  Whenever we see
-        # all current components as 'alive', we unlock the barrier.
-        alive = {t.name: False for t in things}
-        while True:
-
-            topic, msgs = self._ctrl_sub.get_nowait(1000) # timout in ms
-            self._log.debug('got msg (alive?): %s' % msgs)
-
-            if not msgs:
-                # this will happen on timeout
-                msgs = []
-
-            if not isinstance(msgs, list):
-                msgs = [msgs]
-
-            for msg in msgs:
-
-                cmd = msg['cmd']
-                arg = msg['arg']
-
-                # only look at alive messages
-                if cmd not in ['alive']:
-                    # nothing to do
-                    break
-
-                # only look at interesting messages
-                if not arg['owner'] == owner:
-                    self._log.debug('unusable alive msg for %s (%s)', arg['owner'], owner)
-                    break
-
-                sender = arg['sender']
-
-                # alive messages usually come from child processes
-                if sender.endswith('.child'):
-                    sender = sender[:-6]
-
-                # we only look for messages from known things
-                if sender not in alive:
-                    self._log.debug('invalid alive msg from %s' % sender)
-                    break
-
-                # record thing only once
-                if alive[sender]:
-                    self._log.error('duplicated alive msg from %s' % sender)
-                    break
-
-                # thing is known and alive - record
-                alive[sender] = True
-
-            # we can stop waiting is all things are alive:
-            living = alive.values().count(True)
-            if living == len(alive):
-                self._log.debug('barrier %s complete (%s)', self.uid, len(alive))
-                break
-
-            self._log.debug('barrier %s incomplete %s/%s',
-                            self.uid, living, len(alive))
-
-            # check if we have still time to wait:
-
-            now = time.time()
-            self._log.debug('barrier %s check %s : %s : %s' % (self.uid, start, timeout, now))
-            if (now - start) > timeout:
-                self._log.error('barrier %s failed %s/%s',
-                                self.uid, living, len(alive))
-                self._log.error('waited  for %s', alive.keys())
-                self._log.error('missing for %s', [t for t in alive if not alive[t]])
-                raise RuntimeError('startup barrier failed: %s' % alive)
-              # self.stop()
-
-            # incomplete, but still have time: just try again (no sleep
-            # needed, the get_nowait will idle when waiting for messages)
-
-
-        # things are alive -- we can start monitoring them.  We may have
-        # done so before, so check
+        # the things are assumed started at this point -- we can start
+        # monitoring them.  We may have done so before, so check
         if not self._watcher_thread:
             self._log.debug('create watcher thread')
             self._watcher_term   = mt.Event()
@@ -576,7 +478,12 @@ class Controller(object):
                 else:
                   # print '%s died? - shutting down' % thing.name
                     self._log.error('%s died - shutting down' % thing.name)
-                    self.stop()
+
+                    # we raise a ru.ThreadExit exception in the main thread
+                    ru.raise_in_thread()
+
+                    # the thread finishes here
+                    return
 
             time.sleep(0.1)
 

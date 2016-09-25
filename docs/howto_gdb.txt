@@ -1,0 +1,37 @@
+
+sudo apt-get install gdb gdb-doc gdbserver cgdb gdb-multiarch xxgdb 
+sudo apt-get install python-dev
+sudo apt-get install python-dbg
+sudo apt-get install python-virtualenv python-pip
+sudo apt-get install python-netifaces-dbg python-netifaces
+sudo apt-get install python-pymongo-dbg python-ntplib-dbg python-msgpack-dbg python-zmq-dbg
+sudo apt-get install python-psutil-dbg 
+sudo apt-get install python-all-dbg
+sudo apt-get install python-colorama  python-libcloud python-parse
+sudo apt-get install python-pymongo python-hostlist python-ntplib python-msgpack
+aptrm python-setproctitle python-setproctitle-dbg
+
+export VE=/tmp/ve
+virtualenv -p python-dbg --system-site-packages $VE
+
+git clone git@github.com:dvarrazzo/py-setproctitle.git
+cd py-setproctitle/
+python setup.py install
+make
+python setup.py install
+cp build/lib.2/setproctitle_d.so ../ve/lib/python2.7/site-packages/
+python -c 'import setproctitle'
+
+cd ~/radical.utils
+pip install .
+
+cd ~/radical.saga
+pip install .
+
+cd ~/radical.pilot
+pip install .
+
+python-dbg examples/00_getting_started.py
+
+
+

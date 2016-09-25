@@ -57,6 +57,16 @@ def bootstrap_3(agent_name):
         while True:
             time.sleep(1)
 
+    except Exception as e:
+        print 'except %s: %s' % (agent_name, e)
+
+    except ru.ThreadExit as e:
+        print 'thread exit %s: %s' % (agent_name, e)
+
+    except ru.SignalRaised as e:
+        print 'signal raised %s: %s' % (agent_name, e)
+
+
     finally:
 
         # in all cases, make sure we perform an orderly shutdown.  I hope python

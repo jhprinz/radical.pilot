@@ -103,6 +103,12 @@ class Profiler (object):
         if not self._enabled:
             return
 
+        # if uid is a list, then recursively call self.prof for each uid given
+        if isinstance(uid, list):
+            for _uid in uid:
+                self.prof(event, _uid, state, msg, timestamp, logger)
+            return
+
         if logger:
             logger("%s (%10s%s) : %s", event, uid, state, msg)
 

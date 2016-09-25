@@ -376,12 +376,11 @@ class Agent_0(rpu.Worker):
             if cmd == 'cancel_pilot':
                 self._log.info('cancel pilot cmd')
                 self._final_cause = 'cancel'
-                with open('./killme.signal', 'w+') as f:
-                    f.write('cancel pilot cmd received\n')
         
               # ru.attach_pudb(logger=self._log)
 
-                self.stop()
+                ru.raise_in_thread(e=ru.ThreadExit)
+                
 
             elif cmd == 'cancel_unit':
                 self._log.info('cancel unit cmd')
@@ -402,7 +401,7 @@ class Agent_0(rpu.Worker):
             if time.time() >= self._starttime + (int(self._runtime) * 60):
                 self._log.info("reached runtime limit (%ss).", self._runtime*60)
                 self._final_cause = 'timeout'
-                self.stop()
+                ru.raise_in_thread(e=ru.ThreadExit)
 
 
     # --------------------------------------------------------------------------

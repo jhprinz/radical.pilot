@@ -110,8 +110,8 @@ if __name__ == '__main__':
         # get some more details for one unit:
         import time
         unit_dict = units[0].as_dict()
-        report.plain("unit workdir : %s\n" % unit_dict['working_directory'])
-        report.plain("pilot id     : %s\n" % unit_dict['execution_details']['pilot'])
+        report.plain("unit workdir : %s\n" % unit_dict['sandbax'])
+        report.plain("pilot id     : %s\n" % unit_dict['pilot'])
         report.plain("state history: \n")
         for state_info in unit_dict['execution_details']['statehistory']:
             report.plain("\t\t%s : %s\n" % \

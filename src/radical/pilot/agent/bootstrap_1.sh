@@ -1513,7 +1513,7 @@ IFS=$OLD_IFS
 # we can't always lookup the ntp pool on compute nodes -- so do it once here,
 # and communicate the IP to the agent.  The agent may still not be able to
 # connect, but then a sensible timeout will kick in on ntplib.
-RADICAL_PILOT_NTPHOST=`dig +short 0.pool.ntp.org | grep -v -e ";;" -e "\.$" | head -n 1`
+RADICAL_PILOT_NTPHOST=`dig +tries=1 +time=3 +short 0.pool.ntp.org | grep -v -e ";;" -e "\.$" | head -n 1`
 if test "$?" = 0
 then
     RADICAL_PILOT_NTPHOST="46.101.140.169"
@@ -1664,28 +1664,8 @@ profile_event 'sync rel' 'agent start'
                1> agent_0.bootstrap_2.out \
                2> agent_0.bootstrap_2.err &
 AGENT_PID=$!
-while true
-do
-    sleep 1
-    if kill -0 $AGENT_PID
-    then 
-        if test -e "./killme.signal"
-        then
-            echo "send SIGTERM to $AGENT_PID"
-            kill -15 $AGENT_PID
-            sleep  5
-            echo "send SIGKILL to $AGENT_PID"
-            kill  -9 $AGENT_PID
-            break
-        fi
-    else 
-        echo "agent $AGENT_PID is gone"
-        break
-    fi
-done
 
 # collect process and exit code
-echo "agent $AGENT_PID is final"
 wait $AGENT_PID
 AGENT_EXITCODE=$?
 echo "agent $AGENT_PID is final ($AGENT_EXITCODE)"
