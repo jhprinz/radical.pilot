@@ -340,8 +340,8 @@ class Component(mp.Process):
         self._cb_lock       = mt.RLock()   # guard threaded callback invokations
 
         # get debugging, logging, profiling set up
-        if 'update' in self.uid:
-            ru.attach_pudb()
+      # if 'update' in self.uid:
+      #     ru.attach_pudb()
         self._dh   = ru.DebugHelper(name=self.uid)
         self._log  = self._session._get_logger(self.uid, level=self._debug)
         self._log.info('a 1')
