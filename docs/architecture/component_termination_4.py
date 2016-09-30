@@ -56,6 +56,10 @@
 #     any error to `stderr`.  The MainThread will not be notified of the exit
 #     request.
 #
+#   - https://bugs.python.org/issue6642 (08/2009)
+#     We can never fork in a sub-thread, as the fork will not clean out the
+#     Python interpreter.
+#
 #
 # Not errors, but expected behavior which makes life difficult:
 #
