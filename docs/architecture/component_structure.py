@@ -173,6 +173,7 @@ class Component(mp.Process):
                     # sort into things/state buckets, by machig
                     for state,things in buckets.iteritems():
                         self._workers[state](things)
+
         except Exception as e:
             # error in communication channel or worker
             self._log.exception('loop exception')

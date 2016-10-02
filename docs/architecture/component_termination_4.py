@@ -213,34 +213,34 @@
 #
 # We create the followin process/thread hirarchy:
 #
-#   - main:         1: process 0, MainThread
-#                   2: process 0, WatcherThread
-#                   3: process 0, WorkerThread 1
-#                   4: process 0, WorkerThread 2
-#     - child 1:    5: process 1, MainThread
-#                   6: process 1, WatcherThread
-#                   7: process 1, WorkerThread
-#                   8: process 1, WorkerThread
-#       - child 2:  9: process 2, MainThread
-#                  10: process 2, WatcherThread
-#                  11: process 2, WorkerThread
-#                  12: process 2, WorkerThread
-#       - child 3:  -: process 3, MainThread
-#                   -: process 3, WatcherThread
-#                   -: process 3, WorkerThread
-#                   -: process 3, WorkerThread
-#     - child 4:    -: process 4, MainThread
-#                   -: process 4, WatcherThread
-#                   -: process 4, WorkerThread
-#                   -: process 4, WorkerThread
-#       - child 5:  -: process 5, MainThread
-#                   -: process 5, WatcherThread
-#                   -: process 5, WorkerThread
-#                   -: process 5, WorkerThread
-#       - child 6:  -: process 6, MainThread
-#                   -: process 6, WatcherThread
-#                   -: process 6, WorkerThread
-#                   -: process 6, WorkerThread
+#   - main:        'child   1'   test  1:  process 0, MainThread
+#                  'thread  2'   test  2:  process 0, WatcherThread
+#                  'thread  3'   test  3:  process 0, WorkerThread 1
+#                  'thread  4'   test  4:  process 0, WorkerThread 2
+#     - child 1:   'child   5'   test  5:  process 1, MainThread
+#                  'thread  6'   test  6:  process 1, WatcherThread
+#                  'thread  7'   test  7:  process 1, WorkerThread
+#                  'thread  8'   test  8:  process 1, WorkerThread
+#       - child 2: 'child   9'   test  9:  process 2, MainThread
+#                  'thread 10'   test 10:  process 2, WatcherThread
+#                  'thread 11'   test 11:  process 2, WorkerThread
+#                  'thread 12'   test 12:  process 2, WorkerThread
+#       - child 3: 'child  13'   test  -:  process 3, MainThread
+#                  'thread 14'   test  -:  process 3, WatcherThread
+#                  'thread 15'   test  -:  process 3, WorkerThread
+#                  'thread 16'   test  -:  process 3, WorkerThread
+#     - child 4:   'child  17'   test  -:  process 4, MainThread
+#                  'thread 18'   test  -:  process 4, WatcherThread
+#                  'thread 19'   test  -:  process 4, WorkerThread
+#                  'thread 20'   test  -:  process 4, WorkerThread
+#       - child 5: 'child  21'   test  -:  process 5, MainThread
+#                  'thread 22'   test  -:  process 5, WatcherThread
+#                  'thread 23'   test  -:  process 5, WorkerThread
+#                  'thread 24'   test  -:  process 5, WorkerThread
+#       - child 6: 'child  25'   test  -:  process 6, MainThread
+#                  'thread 26'   test  -:  process 6, WatcherThread
+#                  'thread 27'   test  -:  process 6, WorkerThread
+#                  'thread 28'   test  -:  process 6, WorkerThread
 #
 # Worker threads will work on random items, consuming between 1 and 90 seconds
 # of time each.  The enumerated entities will raise exceptions after 2 minutes,
@@ -261,511 +261,276 @@
 import os
 import sys
 import time
+import random
 import signal
+import setproctitle
 
 import threading       as mt
 import multiprocessing as mp
 
 import radical.utils   as ru
 
-# ------------------------------------------------------------------------------
-#
-dh = ru.DebugHelper()
-
 
 # ------------------------------------------------------------------------------
 #
-SLEEP    = 1
-RAISE_ON = 3
+config = {
+        'watcher  0' : None, 
+        'child    1' : {
+            'watcher  2' : None, 
+            'worker   3' : None, 
+            'worker   4' : None, 
+            'child    5' : {
+                'watcher  6' : None, 
+                'worker   7' : None, 
+                'worker   8' : None, 
+                'child    9' : {
+                    'watcher 10' : None, 
+                    'worker  11' : None, 
+                    'worker  12' : None, 
+                },
+                'child  13' : {
+                    'watcher 14' : None, 
+                    'worker  15' : None, 
+                    'worker  16' : None, 
+                }
+            },
+            'child   17' : {
+                'watcher 18' : None, 
+                'worker  19' : None, 
+                'worker  20' : None, 
+                'child   21' : {
+                    'watcher 22' : None, 
+                    'worker  23' : None, 
+                    'worker  24' : None, 
+                },
+                'child   25' : {
+                    'watcher 26' : None, 
+                    'worker  27' : None, 
+                    'worker  28' : None, 
+                }
+            }
+        }
+    }
 
 
 # ------------------------------------------------------------------------------
 #
-class WorkerThread(mt.Thread):
+def work(worker):
 
-    def __init__(self, num, pnum, tnum):
+    try:
 
-        self.num  = num
-        self.pnum = pnum
-        self.tnum = tnum
-        self.pid  = os.getpid() 
-        self.tid  = mt.currentThread().ident 
-        self.uid  = "t.%d.%s %8d.%s" % (self.pnum, self.tnum, self.pid, self.tid)
-        self.term = mt.Event()
-        
-        mt.Thread.__init__(self, name=self.uid)
+        print '%-10s : start' % worker.uid
 
-      # print '%s create' % self.uid
+        while not worker.term.is_set():
+
+            item = random.randint(2,2)
+            print '%-10s : %3ds start' % (worker.uid, item)
+            time.sleep(item)
+            print '%-10s : %3ds stop'  % (worker.uid, item)
+
+        print '%-10s : term requested' % worker.uid
+
+    except Exception as e:
+        print '%-10s : fail [%s]' % (worker.uid, e)
+
+    print '%-10s : stop' % worker.uid
+
+
+# ------------------------------------------------------------------------------
+#
+class Child(mp.Process):
+    
+    def __init__(self, name, cfg, term):
+        mp.Process.__init__(self)
+        self.is_parent = True
+        self.uid       = name
+        self.cfg       = cfg
+        self.term      = term
+        self.dh        = ru.DebugHelper()
+        self.stopped   = False
+        self.killed    = False
+        self.watcher   = Watcher(cfg)
+        self.watcher.start()
 
 
     def stop(self):
+
+        assert(ru.is_main_thread())
+        assert(self.is_parent)
+        assert(not self.stopped)
+        self.stopped = True
+
+        self.term.set()
+        print '%-10s : stop watcher' % self.uid
+        self.watcher.stop()
+        ret = ru.watch_condition(target=False, cond=self.watcher.is_alive, timeout=15)
+        if not ret:
+            print '%-10s : could not stop watcher - kill' % self.uid
+            self.watcher.kill()
+        self.watcher.join()
+        print '%-10s : watcher stopped' % self.uid
+
+
+    def kill(self):
+
+        assert(ru.is_main_thread())
+        assert(self.is_parent)
+        assert(not self.killed)
+        self.killed = True
+
+        signal.kill(self.child, signal.SIGUSR2)
+
+
+    def run(self):
+
+        self.is_parent = False
+        setproctitle.setproctitle('%s.child' % self.uid)
+
+        def handler(signum, sigframe):
+            print '%-10s : signal handled' % self.uid
+            self.term.set()
+        signal.signal(signal.SIGUSR2, handler)
+
+        work(self)
+
+
+# ------------------------------------------------------------------------------
+#
+class Worker(mt.Thread):
+
+    def __init__(self, name, cfg, term):
+        mt.Thread.__init__(self)
+        self.uid  = name
+        self.cfg  = cfg
+        self.term = term
+
+    def stop(self):
+        # TODO: make sure this is only done once
         self.term.set()
 
 
+    def kill(self):
+        # TODO: make sure this is only done once
+        # TODO: make sure this is called in thread parent
+        # TODO: inject exception into child main thread
+        pass
+
+
     def run(self):
+        # TODO: except for kill
+        work(self)
 
-        try:
-          # print '%s start' % self.uid
-
-            while not self.term.is_set():
-
-              # print '%s run' % self.uid
-                time.sleep(SLEEP)
-
-                if self.num == 4 and self.pnum == 1:
-                    print "4"
-                    ru.raise_on(self.uid, RAISE_ON)
-    
-          # print '%s stop' % self.uid
-    
-        except Exception as e:
-            print '%s error %s [%s]' % (self.uid, e, type(e))
-    
-        except SystemExit:
-            print '%s exit' % (self.uid)
-    
-        except KeyboardInterrupt:
-            print '%s intr' % (self.uid)
-    
-        finally:
-            print '%s final' % (self.uid)
 
 
 # ------------------------------------------------------------------------------
 #
-class WatcherThread(mt.Thread):
+class Watcher(mt.Thread):
 
-    # All entities which use a watcher thread MUST except KeyboardInterrupt, 
-    # as we'll use that signal to communicate error conditions to the
-    # MainThread.
-    #
-    # The watcher thread is a daemon thread: it must not be joined.  We thus
-    # overload join() and disable it.
-    #
-    # To avoid races and locks during termination, we frequently check if the
-    # MainThread is still alive, and terminate otherwise
-    
-    def __init__(self, to_watch, num, pnum, tnum):
+    def __init__(self, cfg):
+        mt.Thread.__init__(self)
+        self.cfg    = cfg
+        self.term   = mt.Event()
+        self.uid    = None
+        self.things = list()
 
-        self.to_watch = to_watch
-        self.num      = num
-        self.pnum     = pnum
-        self.tnum     = tnum
-        self.pid      = os.getpid() 
-        self.tid      = mt.currentThread().ident 
-        self.uid      = "w.%d.%s %8d.%s" % (self.pnum, self.tnum, self.pid, self.tid)
-        self.term     = mt.Event()
+        self._thread_term = mt.Event()
+        self._proc_term   = mp.Event()
 
-        self.main     = None
-        for t in mt.enumerate():
-             if t.name == "MainThread":
-                 self.main = t
+        # first create threads and procs to be watched
+        for name,_cfg in cfg.iteritems():
+            print name, _cfg
+            if 'child' in name:
+                child = Child(name=name, cfg=_cfg, term=self._proc_term)
+                child.start()
+                self.things.append(child)
+            elif 'worker' in name:
+                worker = Worker(name=name, cfg=_cfg, term=self._thread_term)
+                worker.start()
+                self.things.append(worker)
 
-        if not self.main:
-            raise RuntimeError('%s could not find main thread' % self.uid)
+      # if not self.things:
+      #     raise ValueError('nothing to watch')
+
+        # then create watchers to watch those
+        for name,cfg in cfg.iteritems():
+            if 'watcher' in name:
+                if self.uid:
+                    raise ValueError('only one watcher supported')
+                self.uid = name
+
+      # if not self.uid:
+      #     raise ValueError('no watcher in config')
         
-        mt.Thread.__init__(self, name=self.uid)
-        self.daemon = True  # this is a daemon thread
 
-        print '%s create' % self.uid
-
-
-    # --------------------------------------------------------------------------
-    #
     def stop(self):
+        # FIXME: make sure this is only done once
 
+        # make sure the watcher loop is gone
         self.term.set()
 
+        # tell children whats up
+        self._proc_term.set()
+        self._thread_term.set()
 
-    # --------------------------------------------------------------------------
-    #
-    def join(self):
+        for t in self.things:
+            print '%-10s :  join    %s' % (self.uid, t.uid)
+            # FIXME: implement timeout
+            t.stop()
+            t.join()
+            print '%-10s :  joined  %s' % (self.uid, t.uid)
 
-        print '%s: join ignored' % self.uid
+        print '%-10s :  stopped' % self.uid
+
+        # FIXME: implement kill on timeout
 
 
-    # --------------------------------------------------------------------------
-    #
+    def check(self):
+        return bool(self.term.is_set())
+
+
+    def kill(self):
+        # TODO: make sure this is only done once
+        # TODO: make sure this is called in thread parent
+        # TODO: inject exception into child main thread
+        pass
+
+
     def run(self):
+        # TODO: except for kill
 
         try:
-            print '%s start' % self.uid
-
+            print '%-10s : start' % self.uid
             while not self.term.is_set():
-
-              # print '%s run' % self.uid
-                time.sleep(SLEEP)
-
-                if self.num == 2 and self.pnum == 0:
-                    print "2"
-                    ru.raise_on(self.uid, RAISE_ON)
-
-                if self.num == 5 and self.pnum == 1:
-                    print "5"
-                    ru.raise_on(self.uid, RAISE_ON)
-
-                # check watchables
-                for thing in self.to_watch:
-                    if thing.is_alive():
-                        print '%s event: thing %s is alive' % (self.uid, thing.uid)
-                    else:
-                        print '%s event: thing %s has died' % (self.uid, thing.uid)
-                        ru.cancel_main_thread()
-                        assert(False) # we should never get here
-
-                # check MainThread
-                if not self.main.is_alive():
-                    print '%s: main thread gone - terminate' % self.uid
-                    self.stop()
-
-            print '%s stop' % self.uid
+                time.sleep(2)
+                for t in self.things:
+                    if not t.is_alive():
+                        print '%-10s : %s died' % (self.uid, t.uid)
+                        # TODO: we could send a signal to parent before
+                        # spending time in stop
+                        # FIXME: CONT
+                      # self.stop()
+                        return
+                    print '%-10s : %s ok' % (self.uid, t.uid)
 
 
-        except Exception as e:
-            print '%s error %s [%s]' % (self.uid, e, type(e))
-            ru.cancel_main_thread()
-       
-        except SystemExit:
-            print '%s exit' % (self.uid)
-            # do *not* cancel MainThread here!  We get here after the cancel
-            # signal has been sent in the main loop above
-       
         finally:
-            print '%s final' % (self.uid)
-
-
-# ------------------------------------------------------------------------------
-#
-class ProcessWorker(mp.Process):
-    
-    def __init__(self, num, pnum):
-
-        self.num   = num
-        self.pnum  = pnum
-        self.ospid = os.getpid() 
-        self.tid   = mt.currentThread().ident 
-        self.uid   = "p.%d.%s %8s.%s" % (self.pnum, 0, self.ospid, self.tid)
-
-        print '%s create' % (self.uid)
-
-        mp.Process.__init__(self, name=self.uid)
-
-        self.worker  = None
-        self.watcher = None
-
-
-    # --------------------------------------------------------------------------
-    #
-    def join(self):
-
-        # Due to the overloaded stop, we may see situations where the child
-        # process pid is not known anymore, and an assertion in the mp layer
-        # gets triggered.  We except that assertion and assume the join
-        # completed.
-        #
-        # NOTE: the except can mask actual errors
-
-        try:
-            # when start() is called, join can be called immediately after.  At
-            # that point, the child may, however, not yet be alive, and join
-            # would *silently* return immediately.  If between that failed join
-            # and process termination the child process *actually* comes up, the
-            # process termination will hang, as the child has not been waited
-            # upon.
-            #
-            # We thus use a timeout on join, and, when the child did not appear
-            # then, attempt to terminate it again.
-            #
-            # TODO: choose a sensible timeout.  Hahahaha...
-
-            print '%s join: child join %s' % (self.uid, self.pid)
-            mp.Process.join(self, timeout=1)
-
-            # give child some time to come up in case the join
-            # was racing with creation
-            time.sleep(1)  
-
-            if self.is_alive(): 
-                # we still (or suddenly) have a living child - kill/join again
-                self.stop()
-                mp.Process.join(self, timeout=1)
-
-            if self.is_alive():
-                raise RuntimeError('Cannot kill child %s' % self.pid)
-                
-            print '%s join: child joined' % (self.uid)
-
-        except AssertionError as e:
-            print '%s join: ignore race' % (self.uid)
-
-
-    # --------------------------------------------------------------------------
-    #
-    def stop(self):
-
-        # we terminate all threads and processes here.
-
-        # The mp stop can race with internal process termination.  We catch the
-        # respective OSError here.
-
-        # In some cases, the popen module seems finalized before the stop is
-        # gone through.  I suspect that this is a race between the process
-        # object finalization and internal process termination.  We catch the
-        # respective AttributeError, caused by `self._popen` being unavailable.
-        #
-        # NOTE: both excepts can mask actual errors
-
-        try:
-            # only terminate child if it exists -- but there is a race between
-            # check and signalling anyway...
-            if self.is_alive():
-                self.terminate()  # this sends SIGTERM to the child process
-                print '%s stop: child terminated' % (self.uid)
-
-        except OSError as e:
-            print '%s stop: child already gone' % (self.uid)
-
-        except AttributeError as e:
-            print '%s stop: popen module is gone' % (self.uid)
-
-
-    # --------------------------------------------------------------------------
-    #
-    def run(self):
-
-        # We can't catch signals from child processes and threads, so we only
-        # look out for SIGTERM signals from the parent process.  Upon receiving
-        # such, we'll stop.
-        #
-        # We also start a watcher (WatcherThread) which babysits all spawned
-        # threads and processes, an which will also call stop() on any problems.
-        # This should then trickle up to the parent, who will also have
-        # a watcher checking on us.
-
-        self.ospid = os.getpid() 
-        self.tid   = mt.currentThread().ident 
-        self.uid   = "p.%d.0 %8d.%s" % (self.pnum, self.ospid, self.tid)
-
-        try:
-            # ------------------------------------------------------------------
-            def sigterm_handler(signum, frame):
-                # on sigterm, we invoke stop(), which will exit.
-                # Python should (tm) give that signal to the MainThread.  
-                # If not, we lost.
-                assert(mt.currentThread().name == 'MainThread')
-                self.stop()
-            # ------------------------------------------------------------------
-            signal.signal(signal.SIGTERM, sigterm_handler)
-
-            print '%s start' % self.uid
-
-            # create worker thread
-            self.worker1 = WorkerThread(self.num, self.pnum, 0)
-            self.worker1.start()
-     
-            self.worker2 = WorkerThread(self.num, self.pnum, 0)
-            self.worker2.start()
-     
-            self.watcher = WatcherThread([self.worker1, self.worker2], 
-                                          self.num, self.pnum, 1)
-            self.watcher.start()
-
-            while True:
-                print '%s run' % self.uid
-                time.sleep(SLEEP)
-                if self.num == 3 and self.pnum == 1:
-                    print "3"
-                    ru.raise_on(self.uid, RAISE_ON)
-
-            print '%s stop' % self.uid
-
-        except Exception as e:
-            print '%s error %s [%s]' % (self.uid, e, type(e))
-       
-        except SystemExit:
-            print '%s exit' % (self.uid)
-       
-        except KeyboardInterrupt:
-            print '%s intr' % (self.uid)
-       
-        finally:
-            # we came here either due to errors in run(), KeyboardInterrupt from
-            # the WatcherThread, or clean exit.  Either way, we stop all
-            # children.
-            self.stop()
-
-
-    # --------------------------------------------------------------------------
-    #
-    def finalize(self):
-
-        # the finally clause of run() can again be interrupted!  We thus move
-        # the complete finalization into a separate method which shields the
-        # finalization from that.  It will though abort any finalization on
-        # interruption, as we have no means to distinguich finalization errors
-        # from external interruptions.  This can, however lead to incomplete
-        # finalization.
-        #
-        # This problem is mitigated when `ru.cancel_main_thread(once=True)` is
-        # used to initiate finalization, as that method will make sure that any
-        # signal is sent at most once to the process, thus avoiding any further
-        # interruption.
-
-        try:
-            print '%s final' % (self.uid)
-            if self.watcher:
-                print '%s final -> twatcher' % (self.uid)
-                self.watcher.stop()
-            if self.worker:
-                print '%s final -> tworker' % (self.uid)
-                self.worker.stop()
-
-            if self.watcher:
-                print '%s final => twatcher' % (self.uid)
-                self.watcher.join
-                print '%s final |> twatcher' % (self.uid)
-            if self.worker:
-                print '%s final => tworker' % (self.uid)
-                self.worker.join
-                print '%s final |> tworker' % (self.uid)
-
-            print '%s final' % (self.uid)
-
-        except Exception as e:
-            print '%s error %s [%s]' % (self.uid, e, type(e))
-       
-        except SystemExit:
-            print '%s exit' % (self.uid)
-       
-        except KeyboardInterrupt:
-            print '%s intr' % (self.uid)
-       
-        finally:
-            print 'worker finalized'
-
-
-
-# ------------------------------------------------------------------------------
-#
-def main(num):
-
-    # *always* install SIGTERM and SIGINT handlers, which will translate those
-    # signals into exceptable exceptions.
-
-    watcher = None
-    p1      = None
-    p2      = None
-
-    try:
-        pid = os.getpid() 
-        tid = mt.currentThread().ident 
-        uid = "m.0.0 %8d.%s" % (pid, tid)
-
-        print '%s start' % uid
-        p1 = ProcessWorker(num, 1)
-        p2 = ProcessWorker(num, 2)
-        
-        p1.start()
-        p2.start()
-
-        watcher = WatcherThread([p1, p2], num, 0, 1)
-        watcher.start()
-
-        while True:
-            print '%s run' % uid
-            time.sleep(SLEEP)
-            if num == 1:
-                print "1"
-                ru.raise_on(uid, RAISE_ON)
-
-        print '%s stop' % uid
-
-    except RuntimeError as e:
-        print '%s error %s [%s]' % (uid, e, type(e))
-    
-    except SystemExit:
-        print '%s exit' % (uid)
-    
-    except KeyboardInterrupt:
-        print '%s intr' % (uid)
-    
-    finally:
-        finalize(p1, p2, watcher)
-
-
-def finalize(p1, p2, watcher):
-
-    try:
-        if p1:
-            print '%s final -> p.1' % (uid)
-            p1.stop()
-            print '%s final => p.1' % (uid)
-            p1.join()
-            print '%s final |> p.1' % (uid)
-        else:
-            print '%s final |? p.1' % (uid)
-
-        if p2:
-            print '%s final -> p.2' % (uid)
-            p2.stop()
-            print '%s final => p.2' % (uid)
-            p2.join()
-            print '%s final |> p.2' % (uid)
-        else:
-            print '%s final |? p.2' % (uid)
-
-        if watcher:
-            print '%s final -> pwatcher' % (uid)
-            watcher.stop()
-            print '%s final => pwatcher' % (uid)
-            watcher.join()
-            print '%s final |> pwatcher' % (uid)
-        else:
-            print '%s final |? pwatcher' % (uid)
-        print '%s final' % (uid)
-
-    except RuntimeError as e:
-        print '%s finalize error %s [%s]' % (uid, e, type(e))
-    
-    except SystemExit:
-        print '%s finalize exit' % (uid)
-    
-    except KeyboardInterrupt:
-        print '%s finalize intr' % (uid)
-    
-    finally:
-        print 'finalized'
+            print '%-10s : stop' % self.uid
 
 
 # ------------------------------------------------------------------------------
 #
 if __name__ == '__main__':
 
-    uid = 'm.0.0 %8s.%15s' % (0, 0)
+    dh = ru.DebugHelper()
 
-    if len(sys.argv) > 1:
-        num = int(sys.argv[1])
-    else:
-        num = 1
-
-    try:
-        print '-------------------------------------------'
-        main(num)
-
-    except RuntimeError as e:
-        print '%s error %s [%s]' % (uid, e, type(e))
-    
-    except SystemExit:
-        print '%s exit' % (uid)
-    
-    except KeyboardInterrupt:
-        print '%s intr' % (uid)
-    
-    finally:
-        print 'success %d\n\n' % num
-
-    print '-------------------------------------------'
-
+    watcher = Watcher(config)
+    watcher.start()
+    time.sleep(5)
+    print '===================================='
+    watcher.stop()
+    print 'after stop'
+    watcher.join()
+    print 'after join 2'
 
 # ------------------------------------------------------------------------------
 
