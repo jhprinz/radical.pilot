@@ -18,7 +18,7 @@ class A(mp.Process):
         B.start ()
 
     def run(self):
-        C = Popen(args  = '/bin/false')
+        C = Popen(args='/bin/false')
         self.q.put(C)
 
 a = A()
