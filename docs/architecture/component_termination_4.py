@@ -505,6 +505,10 @@ class Watcher(mt.Thread):
                 for t in self.things:
                     if not t.is_alive():
                         print '%-10s : %s died' % (self.uid, t.uid)
+                        # TODO: we could send a signal to parent before
+                        # spending time in stop
+                        # FIXME: CONT
+                      # self.stop()
                         return
                     print '%-10s : %s ok' % (self.uid, t.uid)
 
