@@ -13,7 +13,7 @@ try:
     t = mt.Thread(target=sub)
     t.start()
     time.sleep(3)
-    assert(False) # should naver have gotten here
+    assert(False) # should never have gotten here
 except SystemExit as e:
     print 'exit: %s' % e
 finally:

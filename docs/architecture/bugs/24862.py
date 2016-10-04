@@ -1,27 +1,29 @@
 #!/usr/bin/env python
 
-from subprocess      import Popen
+import subprocess
 import multiprocessing as mp
 
-class A(mp.Process):
+class ProcessManager(object):
 
     def __init__(self):
+        self.queue   = mp.Queue()
+        self.watcher = mp.Process(target=self.watch)
+        self.watcher.start ()
 
-        mp.Process.__init__(self)
+    def watch(self):
+        job       = self.queue.get()
+        exit_code = job.poll()
+        assert(exit_code == 1)
 
-        self.q = mp.Queue()
-        def b(q):
-            C = q.get()
-            exit_code = C.poll()
-            assert(exit_code == 1)
-        B = mp.Process(target = b, args=[self.q])
-        B.start ()
+    def wait(self):
+        self.watcher.join()
 
-    def run(self):
-        C = Popen(args='/bin/false')
-        self.q.put(C)
+    def run(self, task):
+        job = subprocess.Popen(args=task)
+        self.queue.put(job)
 
-a = A()
-a.start()
-a.join()
+
+pm = ProcessManager()
+pm.run('/bin/false')
+pm.wait()
 

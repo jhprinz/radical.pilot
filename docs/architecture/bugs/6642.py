@@ -6,7 +6,9 @@ def worker():
     childpid = os.fork()
     if childpid != 0:
         # Parent waits for child.
+        print 'wait for child'
         os.waitpid(childpid, 0)
+        print 'child finished'
     else:
         # Child spawns a daemon thread and then returns immediately.
         def daemon():
@@ -23,5 +25,4 @@ def worker():
 w = threading.Thread(target=worker)
 w.start()
 w.join()
-#worker()
 
