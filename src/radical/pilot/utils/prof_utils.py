@@ -498,7 +498,7 @@ def clean_profile(profile, sid):
 #
 def get_session_profile(sid):
     
-    profdir = '%s/%s/' % (os.getcwd(), sid)
+    profdir = '%s/profiles/%s/' % (os.getcwd(), sid)
 
     if os.path.exists(profdir):
         # we have profiles locally
