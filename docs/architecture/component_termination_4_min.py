@@ -272,7 +272,7 @@ import radical.utils   as ru
 
 TIMEOUT  =  0.5
 WORK_MIN =  0.1
-WORK_MAX =  1.0
+WORK_MAX =  2.0
 
 # ------------------------------------------------------------------------------
 #
@@ -322,28 +322,21 @@ def work(worker):
     while not worker.term.is_set():
         item = WORK_MIN + (random.random() * (WORK_MAX - WORK_MIN))
         time.sleep(item)
-        ru.raise_on('work')
 
 
 class Child(mp.Process):
     
     def __init__(self, cfg, term):
-        ru.raise_on('init')
         mp.Process.__init__(self)
         self.cfg     = cfg
         self.term    = mp.Event()
-        ru.raise_on('init')
         self.watcher = Watcher(cfg)
         self.watcher.start()
-        ru.raise_on('init')
 
     def stop(self):
-        ru.raise_on('stop')
         self.term.set()
         self.watcher.stop()
-        ru.raise_on('stop')
         self.watcher.join()
-        ru.raise_on('stop')
 
     def run(self):
         work(self)
@@ -352,16 +345,12 @@ class Child(mp.Process):
 class Worker(mt.Thread):
 
     def __init__(self, cfg, term):
-        ru.raise_on('init')
         mt.Thread.__init__(self)
         self.cfg  = cfg
         self.term = term
-        ru.raise_on('init')
 
     def stop(self):
-        ru.raise_on('stop')
         self.term.set()
-        ru.raise_on('stop')
 
     def run(self):
         work(self)
@@ -370,14 +359,12 @@ class Worker(mt.Thread):
 class Watcher(mt.Thread):
 
     def __init__(self, cfg):
-        ru.raise_on('init')
         mt.Thread.__init__(self)
         self.cfg          = cfg
         self.term         = mt.Event()
         self.things       = list()
         self._thread_term = mt.Event()
         self._proc_term   = mp.Event()
-        ru.raise_on('init')
 
         for name,_cfg in cfg.iteritems():
             if 'child' in name:
@@ -388,21 +375,17 @@ class Watcher(mt.Thread):
                 worker = Worker(cfg=_cfg, term=self._thread_term)
                 worker.start()
                 self.things.append(worker)
-            ru.raise_on('init')
 
 
     def stop(self):
 
-        ru.raise_on('stop')
         self.term.set()         # end watcher loop
         self._proc_term.set()   # end process childs
         self._thread_term.set() # end thread childs
-        ru.raise_on('stop')
 
         for t in self.things:
             t.stop()
             t.join()
-            ru.raise_on('stop')
 
     def check(self):
         return bool(self.term.is_set())
@@ -410,8 +393,7 @@ class Watcher(mt.Thread):
     def run(self):
 
         while not self.term.is_set():
-            time.sleep(1)  # start things
-            ru.raise_on('watch')
+            time.sleep(2)  # start things
             for t in self.things:
                 if not t.is_alive():
                     return
@@ -423,11 +405,10 @@ if __name__ == '__main__':
 
     watcher = Watcher(config)
     watcher.start()
-    ru.raise_on('init')
-    time.sleep(3)
-    ru.raise_on('stop')
+    time.sleep(5)
     watcher.stop()
     watcher.join()
+    print 'done'
 
 # ------------------------------------------------------------------------------
 
