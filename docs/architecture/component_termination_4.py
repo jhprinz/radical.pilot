@@ -259,22 +259,48 @@
 
 
 import os
-import sys
 import time
 import random
-import signal
-import setproctitle
 
 import threading       as mt
 import multiprocessing as mp
 
 import radical.utils   as ru
 
-TIMEOUT  =  0.5
-WORK_MIN =  0.1
-WORK_MAX =  1.0
 
 # ------------------------------------------------------------------------------
+#
+WORK_MIN   =  0.1  # minimial time the work loop sleeps, in seconds
+WORK_MAX   =  1.0  # maximial time the work loop sleeps, in seconds
+TIME_ALIVE =  3.0  # start termination  after this time, in seconds
+
+
+# ------------------------------------------------------------------------------
+#
+# we use `ru.raise_on()` to  trigger artificial error conditions throughout the
+# test code.  `ru.raise_on(tag)` will raise a runtime error when
+#
+#   os.environ['RU_RAISE_ON_%s' % tag.upper()'] 
+#
+# meets some condition.   If set to an integer 'n', it will raise on te n'th
+# invokation (counter is process local).  If set to `RANDOM_%d`, the integer
+# part is expected a number between 0 and 100, and the method will raise an
+# error in the given percentage of cases (normal distribution).
+# 
+# Since raises on `init`, `work` and `watch` will prenmaturely finish many runs,
+# wecuse a higher percentage at `stop`.
+#
+os.environ['RU_RAISE_ON_INIT']  = 'RANDOM_5'
+os.environ['RU_RAISE_ON_WATCH'] = 'RANDOM_5'
+os.environ['RU_RAISE_ON_WORK']  = 'RANDOM_5'
+os.environ['RU_RAISE_ON_STOP']  = 'RANDOM_15'
+
+
+# ------------------------------------------------------------------------------
+#
+# This dict defines the process and thread tree to be created.  Each process
+# (main, child) must have exactly one 'watcher' which will create and monitor
+# the sub-elements of that process.
 #
 config = {
         'watcher  0' : None, 
@@ -390,15 +416,12 @@ class Watcher(mt.Thread):
                 self.things.append(worker)
             ru.raise_on('init')
 
-
     def stop(self):
-
         ru.raise_on('stop')
         self.term.set()         # end watcher loop
         self._proc_term.set()   # end process childs
         self._thread_term.set() # end thread childs
         ru.raise_on('stop')
-
         for t in self.things:
             t.stop()
             t.join()
@@ -408,7 +431,6 @@ class Watcher(mt.Thread):
         return bool(self.term.is_set())
 
     def run(self):
-
         while not self.term.is_set():
             time.sleep(1)  # start things
             ru.raise_on('watch')
@@ -424,7 +446,7 @@ if __name__ == '__main__':
     watcher = Watcher(config)
     watcher.start()
     ru.raise_on('init')
-    time.sleep(3)
+    time.sleep(TIME_ALIVE)
     ru.raise_on('stop')
     watcher.stop()
     watcher.join()

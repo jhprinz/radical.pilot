@@ -1,0 +1,12 @@
+virtualenv -p `which python2-dbg` ve
+source ve/bin/activate
+pip install radical.util
+pip install setproctitle
+wget https://pypi.python.org/packages/a7/4c/8e0771a59fd6e55aac993a7cc1b6a0db993f299514c464ae6a1ecf83b31d/netifaces-0.10.5.tar.gz
+tar zxvf netifaces-0.10.5.tar.gz
+cd netifaces-0.10.5/ 
+pip uninstall -y netifaces
+vim setup.py
+  debug=self.debug -> debug=True
+pip install .
+
