@@ -7,37 +7,38 @@ import time
 import multiprocessing as mp
 
 cfg = {
-    'src'     : {
-        'n'   : 1000,
-        't'   : 0.1
+    'source' : {
+        'n'  : 1000,
+        't'  : 0.1
         },
-    'queue'   : {
-        't'   : 0.1
+    'bridge' : {
+        't'  : 0.1
         },
-    'tgt'     : {
-        't'   : 0.1
+    'sink'   : {
+        't'  : 0.1
         }
     }
 
-def src(host):
+
+def source(host):
     context        = zmq.Context()
     socket_src     = context.socket(zmq.PUSH)
     socket_src.hwm = 10
     socket_src.connect("tcp://%s:5000" % host)
 
-    n = cfg['src']['n']
-    t = cfg['src']['t']
+    n = cfg['source']['n']
+    t = cfg['source']['t']
 
     pid = os.getpid()
 
     for num in range(n):
         msg = {pid:num}
         socket_src.send_json(msg)
-        print 'sent %s' % msg
+        print 'snd %s' % msg
         time.sleep (t)
 
 
-def queue(host):
+def bridge(host):
     context        = zmq.Context()
     socket_src     = context.socket(zmq.PULL)
     socket_src.hwm = 10
@@ -48,30 +49,30 @@ def queue(host):
     socket_sink.hwm = 10
     socket_sink.bind("tcp://127.0.0.1:5001")
 
-    t = cfg['queue']['t']
+    t = cfg['bridge']['t']
 
     while True:
         req = socket_sink.recv()
         msg = socket_src.recv_json()
-        print msg
+        print 'fwd %s' % msg
         socket_sink.send_json(msg)
 
         if t:
             time.sleep (t)
 
 
-def tgt(host):
+def sink(host):
     context         = zmq.Context()
     socket_sink     = context.socket(zmq.REQ)
     socket_sink.hwm = 10
     socket_sink.connect("tcp://127.0.0.1:5001")
 
-    t = cfg['tgt']['t']
+    t = cfg['sink']['t']
     
     while True:
         socket_sink.send('request')
         msg = socket_sink.recv_json()
-        print 'got %s' % msg
+        print 'rcv %s' % msg
         time.sleep (t)
 
 if len(sys.argv) < 3:
@@ -90,9 +91,9 @@ if host in ['local', 'localhost']:
 
 procs = list()
 for arg in sys.argv[2:]:
-    if arg == 'src'  : procs.append (mp.Process(target=src  , args=[host]))
-    if arg == 'queue': procs.append (mp.Process(target=queue, args=[host]))
-    if arg == 'tgt'  : procs.append (mp.Process(target=tgt  , args=[host]))
+    if arg == 'source': procs.append (mp.Process(target=source, args=[host]))
+    if arg == 'bridge': procs.append (mp.Process(target=bridge, args=[host]))
+    if arg == 'sink'  : procs.append (mp.Process(target=sink  , args=[host]))
 
 # Run processes
 for p in procs:

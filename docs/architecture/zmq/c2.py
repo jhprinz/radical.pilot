@@ -9,7 +9,7 @@ delay = 0.0
 if len(sys.argv) > 1:
     delay = float(sys.argv[1])
 
-def filter():
+def bridge():
     context        = zmq.Context()
     socket_src     = context.socket(zmq.PULL)
     socket_src.hwm = 10
@@ -23,11 +23,11 @@ def filter():
     while True:
         req = socket_sink.recv()
         msg = socket_src.recv_json()
-        print msg
+        print 'fwd %s' % msg
         socket_sink.send_json(msg)
 
         if delay:
             time.sleep (delay)
 
-filter()
+bridge()
 

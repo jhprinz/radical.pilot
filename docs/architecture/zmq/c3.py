@@ -15,7 +15,7 @@ def sink():
     while True:
         socket_sink.send('request')
         msg = socket_sink.recv_json()
-        print 'got %s' % msg
+        print 'rcv %s' % msg
         time.sleep (t)
 
 sink()

@@ -1,15 +1,15 @@
-ZMQ Queue Example
+ZMQ Messaging Example
 
-c1: upstream component
-c2: queue component
-C3: downstream component
+c1: upstream   component (source)
+c2: bridge     component
+C3: downstream component (sink)
 
 Run n instances of upstream components in separate terminals, like this:
 
   ./c1.py <name> <delay>
 
 where name is used to identify the component (so that we can later see what
-downstream component gto work from which upstream component), and delay is the
+downstream component got work from which upstream component), and delay is the
 time in seconds (float) between each work item being produced.
 
 Run 1 instance of the queue component (no arguments).
