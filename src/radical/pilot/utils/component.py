@@ -679,6 +679,7 @@ class Component(mp.Process):
         assert(self_thread.name == 'MainThread')
 
         if spawn:
+            self._alive_q = mp.Queue()
             mp.Process.start(self)  # fork happens here
 
         # this is now the parent process context
@@ -689,7 +690,7 @@ class Component(mp.Process):
         # if we spawned a child, we wait for it to come up
         if spawn:
             self._log.info('before alive get %s', self.uid)
-            msg = ru.fs_event_wait('%s.sync' % self.uid, timeout)
+            msg = self._alive_q.get(timeout=timeout)
             self._log.info('after  alive get %s', self.uid)
 
             if not msg:
@@ -1402,9 +1403,8 @@ class Component(mp.Process):
 
                 # initialization is done: let the parent know we are alive
                 self._log.info('before alive put %s', self.uid)
-                ru.fs_event_create('%s.sync' % self._parent_uid, 'alive')
+                self._alive_q.put('alive')
                 self._log.info('after  alive put %s', self.uid)
-                self._log.info(3)
 
                 self._log.debug('START: %s run', self.uid)
 

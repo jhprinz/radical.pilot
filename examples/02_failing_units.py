@@ -110,14 +110,9 @@ if __name__ == '__main__':
             cud = rp.ComputeUnitDescription()
             # trigger an error now and then
             if i % 100: 
-              # cud.executable = 'sleep'
-              # cud.arguments  = ['1']
-              # cud.pre_exec   = ['sleep 1']
-                cud.executable = '/bin/echo'
-                cud.arguments  = ['$RP_PILOT_ID']
+                cud.executable = '/bin/date'
             else:
-                cud.executable = '/bin/echo'
-                cud.arguments  = ['$RP_PILOT_ID']
+                cud.executable = '/bin/data'
 
             cuds.append(cud)
             report.progress()
