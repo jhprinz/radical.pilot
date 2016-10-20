@@ -247,6 +247,7 @@ class LRMS(object):
     # --------------------------------------------------------------------------
     #
     def _configure(self):
+
         raise NotImplementedError("_Configure missing for %s" % self.name)
 
 
