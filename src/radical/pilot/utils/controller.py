@@ -15,7 +15,6 @@ from ..          import constants      as rpc
 from ..          import states         as rps
 
 from .misc       import hostip
-from .prof_utils import timestamp      as rpu_timestamp
 
 from .queue      import Queue          as rpu_Queue
 from .queue      import QUEUE_OUTPUT   as rpu_QUEUE_OUTPUT
@@ -166,6 +165,14 @@ class Controller(object):
 
         # complete the setup with bridge and component creation
         self._start_bridges()
+
+        # immediately listen on the  control pubsub, to catch any alive messages
+        # from started components
+        addr = self._ctrl_cfg['bridges'][rpc.CONTROL_PUBSUB]['addr_out']
+        self._ctrl_sub = rpu_Pubsub(self._session, rpc.CONTROL_PUBSUB, 
+                                    rpu_PUBSUB_SUB, self._cfg, addr=addr)
+
+        # bridges are up, we listen for alives -- start components
         self._start_components()
 
 
@@ -436,8 +443,94 @@ class Controller(object):
             assert(thing.stop)
             assert(thing.join)
 
-        # the things are assumed started at this point -- we can start
-        # monitoring them.  We may have done so before, so check
+        # the things are assumed started at this point -- we just want to
+        # make sure that they are up and running, and thus wait for alive
+        # messages on the control pubsub, for a certain time.  If we don't hear
+        # back from them in time, we consider startup to have failed, and shut
+        # down.
+        timeout = 60
+        start   = time.time()
+
+        # we register 'alive' messages earlier.  Whenever an 'alive' message
+        # arrives, we check if a subcomponent spawned by us is the origin.  If
+        # that is the case, we record the component as 'alive'.  Whenever we see
+        # all current components as 'alive', we unlock the barrier.
+        alive = {t.name: False for t in things}
+        while False: # FIXME
+
+            topic, msgs = self._ctrl_sub.get_nowait(1000) # timout in ms
+            self._log.debug('got msg (alive?): %s' % msgs)
+
+            if not msgs:
+                # this will happen on timeout
+                msgs = []
+
+            if not isinstance(msgs, list):
+                msgs = [msgs]
+
+            for msg in msgs:
+
+                self._log.debug('msg [%s] : %s', owner, pprint.pformat(msg))
+
+                cmd = msg['cmd']
+                arg = msg['arg']
+
+                # only look at alive messages
+                if cmd not in ['alive']:
+                    # nothing to do
+                    break
+
+                # only look at interesting messages
+                if not arg['owner'] == owner:
+                    self._log.debug('unusable alive msg for %s (%s)', arg['owner'], owner)
+                    break
+
+                sender = arg['sender']
+
+                # alive messages usually come from child processes
+                if sender.endswith('.child'):
+                    sender = sender[:-6]
+
+                # we only look for messages from known things
+                if sender not in alive:
+                    self._log.debug('invalid alive msg from %s' % sender)
+                    break
+
+                # record thing only once
+                if alive[sender]:
+                    self._log.error('duplicated alive msg from %s' % sender)
+                    break
+
+                # thing is known and alive - record
+                alive[sender] = True
+
+            # we can stop waiting is all things are alive:
+            living = alive.values().count(True)
+            if living == len(alive):
+                self._log.debug('barrier %s complete (%s)', self.uid, len(alive))
+                break
+
+            self._log.debug('barrier %s incomplete %s/%s',
+                            self.uid, living, len(alive))
+
+            # check if we have still time to wait:
+
+            now = time.time()
+            self._log.debug('barrier %s check %s : %s : %s' % (self.uid, start, timeout, now))
+            if (now - start) > timeout:
+                self._log.error('barrier %s failed %s/%s',
+                                self.uid, living, len(alive))
+                self._log.error('waited  for %s', alive.keys())
+                self._log.error('missing for %s', [t for t in alive if not alive[t]])
+                raise RuntimeError('startup barrier failed: %s' % alive)
+              # self.stop()
+
+            # incomplete, but still have time: just try again (no sleep
+            # needed, the get_nowait will idle when waiting for messages)
+
+
+        # things are alive -- we can start monitoring them.  We may have
+        # done so before, so check
         if not self._watcher_thread:
             self._log.debug('create watcher thread')
             self._watcher_term   = mt.Event()

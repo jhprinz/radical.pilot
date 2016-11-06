@@ -28,34 +28,34 @@ _info_pending = {
 
 _info_premature_final = {
         'Failed'   : '_fail',
-        'Canceled'   : '_canc'
+        'Canceled' : '_canc'
 }
 
 _info_states = [
-        ACTIVE,
-        AGENT_STAGING_INPUT,
-        AGENT_STAGING_INPUT_PENDING,
-        AGENT_STAGING_OUTPUT,
-        AGENT_STAGING_OUTPUT_PENDING,
-        ALLOCATING,
-        ALLOCATING_PENDING,
+        NEW,
         CANCELED,
         DONE,
-        EXECUTING,
-        EXECUTING_PENDING,
         FAILED,
-        LAUNCHING,
-        NEW,
-        PENDING,
-        PENDING_ACTIVE,
-        PENDING_EXECUTION,
-        PENDING_INPUT_STAGING,
-        PENDING_LAUNCH,
-        PENDING_OUTPUT_STAGING,
-        SCHEDULING,
-        STAGING_INPUT,
-        STAGING_OUTPUT,
-        UNSCHEDULED
+
+        UMGR_SCHEDULING_PENDING,
+        UMGR_SCHEDULING,
+        UMGR_STAGING_INPUT_PENDING,
+        UMGR_STAGING_INPUT,
+        AGENT_STAGING_INPUT_PENDING,
+        AGENT_STAGING_INPUT,
+        AGENT_SCHEDULING_PENDING,
+        AGENT_SCHEDULING,
+        AGENT_EXECUTING_PENDING,
+        AGENT_EXECUTING,
+        AGENT_STAGING_OUTPUT_PENDING,
+        AGENT_STAGING_OUTPUT,
+        UMGR_STAGING_OUTPUT_PENDING,
+        UMGR_STAGING_OUTPUT,
+
+        PMGR_LAUNCHING_PENDING,
+        PMGR_LAUNCHING,
+        PMGR_ACTIVE_PENDING,
+        PMGR_ACTIVE,
         ]
 
 _info_entries = [
@@ -614,7 +614,11 @@ def add_states(df):
             row['state'] and \
             row['event'] == 'advance': 
             old = _old_states.get(row['uid'], np.NaN)
-            _old_states[row['uid']] = row['state']
+            if old == row['state']:
+                # no change in state...
+                old = np.NaN
+            else:
+                _old_states[row['uid']] = row['state']
         return old
     # --------------------------------------------------------------------------
   # df['state_from'], df['state_to'] = zip(*df.apply(lambda row: _state(row), axis=1))

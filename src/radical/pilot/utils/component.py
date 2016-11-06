@@ -15,9 +15,6 @@ import radical.utils   as ru
 from ..          import constants      as rpc
 from ..          import states         as rps
 
-from .misc       import hostip
-from .prof_utils import timestamp      as rpu_timestamp
-
 from .queue      import Queue          as rpu_Queue
 from .queue      import QUEUE_OUTPUT   as rpu_QUEUE_OUTPUT
 from .queue      import QUEUE_INPUT    as rpu_QUEUE_INPUT
@@ -373,6 +370,9 @@ class Component(mp.Process):
         # parent *and* child context
         self.initialize_common()
 
+        # initialization is done -- send alive messages
+        self._send_alive()
+
 
     # --------------------------------------------------------------------------
     #
@@ -464,6 +464,31 @@ class Component(mp.Process):
         set up component state before things arrive.
         """
         self._log.debug('initialize_child (NOOP)')
+
+
+    # --------------------------------------------------------------------------
+    #
+    def _send_alive(self):
+
+        # parent *or* child will send an alive message.  child will send it if
+        # it exists, parent otherwise.
+        if self.is_parent and not self.has_child:
+            self._log.debug('parent sends alive')
+            self._log.debug('msg [%s] : %s [parent]', self.uid, self.owner)
+            self.publish(rpc.CONTROL_PUBSUB, {'cmd' : 'alive',
+                                              'arg' : {'sender' : self.uid,
+                                                       'owner'  : self.owner, 
+                                                       'src'    : 'parent'}})
+        elif self.is_child:
+            self._log.debug('child sends alive')
+            self._log.debug('msg [%s] : %s [child]', self.uid, self.owner)
+            self.publish(rpc.CONTROL_PUBSUB, {'cmd' : 'alive',
+                                              'arg' : {'sender' : self.uid,
+                                                       'owner'  : self.owner, 
+                                                       'src'    : 'child'}})
+        else:
+            self._log.debug('no alive sent (%s : %s : %s)', self.is_child,
+                    self.has_child, self.is_parent)
 
 
     # --------------------------------------------------------------------------
@@ -682,10 +707,17 @@ class Component(mp.Process):
             self._alive_q = mp.Queue()
             mp.Process.start(self)  # fork happens here
 
-        # this is now the parent process context
-        self._is_parent = True
-        self._initialize_common()  # get logging up and stuff
-        self._initialize_parent()
+        try:
+            # this is now the parent process context
+            self._is_parent = True
+            self._initialize_common()  # get logging up and stuff
+            self._initialize_parent()
+
+        except Exception as e:
+            # FIXME we might have no self._log here
+            self._log.exception('TERM : %s except in start', self.uid)
+            ru.cancel_main_thread()
+            raise
 
         # if we spawned a child, we wait for it to come up
         if spawn:
@@ -1574,15 +1606,12 @@ class Component(mp.Process):
         """
 
         if not timestamp:
-            timestamp = rpu_timestamp()
+            timestamp = time.time()
 
         if not isinstance(things, list):
             things = [things]
 
-        self._log.debug(' === advance bulk size: %s', len(things))
-
-        target = state
-        state  = None
+        self._log.debug(' === advance bulk size: %s [%s, %s]', len(things), push, publish)
 
         # assign state, sort things by state
         buckets = dict()
@@ -1594,13 +1623,14 @@ class Component(mp.Process):
             if ttype not in ['unit', 'pilot']:
                 raise TypeError("thing has unknown type (%s)" % uid)
 
-            if target:
+            if state:
                 # state advance done here
-                thing['state'] = target
+                thing['state'] = state
+            else:
+                # state advance was done by caller
+                state = thing['state']
 
-            state = thing['state']
-
-            self._log.debug(' === advance bulk size: %s', len(things))
+            self._log.debug(' === advance bulk: %s [%s]', uid, len(things))
             self._prof.prof('advance', uid=uid, state=state, timestamp=timestamp)
 
             if not state in buckets:
@@ -1629,7 +1659,7 @@ class Component(mp.Process):
                                        'state' : state})
 
             self.publish(rpc.STATE_PUBSUB, {'cmd': 'update', 'arg': to_publish})
-            ts = rpu_timestamp()
+            ts = time.time()
             for thing in things:
                 self._prof.prof('publish', uid=thing['uid'], state=thing['state'], timestamp=ts)
 
@@ -1677,7 +1707,7 @@ class Component(mp.Process):
                 self._log.debug(' === put bulk %s: %s', state, len(things))
                 output.put(things)
 
-                ts = rpu_timestamp()
+                ts = time.time()
                 for thing in things:
                     
                     # never carry $all across component boundaries!

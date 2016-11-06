@@ -19,7 +19,6 @@ import radical.utils as ru
 
 from ..states    import *
 from ..utils     import logger
-from ..utils     import timestamp
 from ..context   import Context
 from ..logentry  import Logentry
 
@@ -38,7 +37,6 @@ DEFAULT_RP_VERSION    = 'local'
 DEFAULT_VIRTENV       = '%(global_sandbox)s/ve'
 DEFAULT_VIRTENV_MODE  = 'update'
 DEFAULT_AGENT_CONFIG  = 'default'
-DEFAULT_PYTHON_DIST   = 'default'
 
 # ----------------------------------------------------------------------------
 #
@@ -146,7 +144,7 @@ class PilotLauncherWorker(threading.Thread):
 
         pending_pilots = pilot_col.find(
             {"pilotmanager": self.pilot_manager_id,
-             "state"       : {"$in": [PENDING_ACTIVE, ACTIVE]},
+             "state"       : {"$in": [PMGR_ACTIVE_PENDING, PMGR_ACTIVE]},
              "health_check_enabled": True}
         )
 
@@ -207,7 +205,7 @@ class PilotLauncherWorker(threading.Thread):
 
             if  pilot_failed :
                 out, err, log = self._get_pilot_logs (pilot_col, pilot_id)
-                ts = timestamp()
+                ts = time.time()
                 pilot_col.update(
                     {"_id"  : pilot_id,
                      "state": {"$ne"     : DONE}},
@@ -237,7 +235,7 @@ class PilotLauncherWorker(threading.Thread):
                 # FIXME: this should only be done if the state is not yet
                 # done...
                 out, err, log = self._get_pilot_logs (pilot_col, pilot_id)
-                ts = timestamp()
+                ts = time.time()
                 pilot_col.update(
                     {"_id"  : pilot_id,
                      "state": {"$ne"     : DONE}},
@@ -313,7 +311,7 @@ class PilotLauncherWorker(threading.Thread):
                     #       pending pilots.  In practice we only ever use one
                     #       pmgr though, and its during its shutdown that we get
                     #       here...
-                    ts = timestamp()
+                    ts = time.time()
                     compute_pilot = pilot_col.find_and_modify(
                         query={"pilotmanager": self.pilot_manager_id,
                                "state" : PENDING_LAUNCH},
@@ -334,7 +332,7 @@ class PilotLauncherWorker(threading.Thread):
                 # state to pending, otherwise to failed.
                 compute_pilot = None
 
-                ts = timestamp()
+                ts = time.time()
                 compute_pilot = pilot_col.find_and_modify(
                     query={"pilotmanager": self.pilot_manager_id,
                            "state" : PENDING_LAUNCH},
@@ -409,8 +407,11 @@ class PilotLauncherWorker(threading.Thread):
                         cores_per_node          = resource_cfg.get ('cores_per_node')
                         shared_filesystem       = resource_cfg.get ('shared_filesystem', True)
                         health_check            = resource_cfg.get ('health_check', True)
-                        python_dist             = resource_cfg.get ('python_dist', DEFAULT_PYTHON_DIST)
-
+                        python_dist             = resource_cfg.get ('python_dist')
+                        cu_pre_exec             = resource_cfg.get ('cu_pre_exec')
+                        cu_post_exec            = resource_cfg.get ('cu_post_exec')
+                        export_to_cu            = resource_cfg.get ('export_to_cu')
+                        
 
                         # Agent configuration that is not part of the public API.
                         # The agent config can either be a config dict, or
@@ -615,6 +616,7 @@ class PilotLauncherWorker(threading.Thread):
 
                         # ------------------------------------------------------
                         # sanity checks
+                        if not python_dist        : raise RuntimeError("missing python distribution")
                         if not agent_spawner      : raise RuntimeError("missing agent spawner")
                         if not agent_scheduler    : raise RuntimeError("missing agent scheduler")
                         if not lrms               : raise RuntimeError("missing LRMS")
@@ -667,7 +669,9 @@ class PilotLauncherWorker(threading.Thread):
 
                         # set some agent configuration
                         agent_cfg_dict['cores']              = number_cores
-                        agent_cfg_dict['debug']              = os.environ.get('RADICAL_PILOT_AGENT_VERBOSE', logger.getEffectiveLevel())
+                        agent_cfg_dict['resource_cfg']       = resource_cfg
+                        agent_cfg_dict['debug']              = os.environ.get('RADICAL_PILOT_AGENT_VERBOSE',
+                                                                              logger.getEffectiveLevel())
                         agent_cfg_dict['mongodb_url']        = str(agent_dburl)
                         agent_cfg_dict['lrms']               = lrms
                         agent_cfg_dict['spawner']            = agent_spawner
@@ -677,6 +681,9 @@ class PilotLauncherWorker(threading.Thread):
                         agent_cfg_dict['session_id']         = session_id
                         agent_cfg_dict['agent_launch_method']= agent_launch_method
                         agent_cfg_dict['task_launch_method'] = task_launch_method
+                        agent_cfg_dict['export_to_cu']       = export_to_cu
+                        agent_cfg_dict['cu_pre_exec']        = cu_pre_exec
+                        agent_cfg_dict['cu_post_exec']       = cu_post_exec
                         if mpi_launch_method:
                             agent_cfg_dict['mpi_launch_method']  = mpi_launch_method
                         if cores_per_node:
@@ -785,11 +792,15 @@ class PilotLauncherWorker(threading.Thread):
                         msg = "Submitting SAGA job with description: %s" % str(jd.as_dict())
                         logentries.append(Logentry (msg, logger=logger.debug))
 
-                        pilotjob = js.create_job(jd)
+                        try:
+                            pilotjob = js.create_job(jd)
+                        except saga.BadParameter as e:
+                            raise ValueError('Pilot submission to %s failed: %s' % (resource_key, e))
                         pilotjob.run()
 
-                        # Clean up agent config file after submission
+                        # Clean up agent config file and dir after submission
                         os.unlink(cfg_tmp_file)
+                        os.rmdir(cfg_tmp_dir)
 
                         # do a quick error check
                         if pilotjob.state == saga.FAILED:
@@ -808,16 +819,16 @@ class PilotLauncherWorker(threading.Thread):
                         for le in logentries :
                             log_dicts.append (le.as_dict())
 
-                        # Update the Pilot's state to 'PENDING_ACTIVE' if SAGA job submission was successful.
-                        ts = timestamp()
+                        # Update the Pilot's state to 'PMGR_ACTIVE_PENDING' if SAGA job submission was successful.
+                        ts = time.time()
                         ret = pilot_col.update(
                             {"_id"  : pilot_id,
                              "state": LAUNCHING},
-                            {"$set" : {"state": PENDING_ACTIVE,
+                            {"$set" : {"state": PMGR_ACTIVE_PENDING,
                                        "saga_job_id": saga_job_id,
                                        "health_check_enabled": health_check,
                                        "agent_config": agent_cfg_dict},
-                             "$push": {"statehistory": {"state": PENDING_ACTIVE, "timestamp": ts}},
+                             "$push": {"statehistory": {"state": PMGR_ACTIVE_PENDING, "timestamp": ts}},
                              "$pushAll": {"log": log_dicts}
                             }
                         )
@@ -831,7 +842,7 @@ class PilotLauncherWorker(threading.Thread):
                                 {"_id"  : pilot_id},
                                 {"$set" : {"saga_job_id": saga_job_id,
                                            "health_check_enabled": health_check},
-                                 "$push": {"statehistory": {"state": PENDING_ACTIVE, "timestamp": ts}},
+                                 "$push": {"statehistory": {"state": PMGR_ACTIVE_PENDING, "timestamp": ts}},
                                  "$pushAll": {"log": log_dicts}}
                             )
 
@@ -839,7 +850,7 @@ class PilotLauncherWorker(threading.Thread):
                     except Exception as e:
                         # Update the Pilot's state 'FAILED'.
                         out, err, log = self._get_pilot_logs (pilot_col, pilot_id)
-                        ts = timestamp()
+                        ts = time.time()
 
                         # FIXME: we seem to be unable to bson/json handle saga
                         # log messages containing an '#'.  This shows up here.

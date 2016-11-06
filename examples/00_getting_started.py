@@ -6,8 +6,6 @@ __license__   = 'MIT'
 import os
 import sys
 
-# os.environ['RADICAL_PILOT_VERBOSE'] = 'REPORT'
-
 import radical.pilot as rp
 import radical.utils as ru
 
@@ -58,12 +56,12 @@ if __name__ == '__main__':
         # Here we use a dict to initialize the description object
         pd_init = {
                 'resource'      : resource,
-                'cores'         : 64,  # pilot size
                 'runtime'       : 15,  # pilot runtime (min)
                 'exit_on_error' : True,
                 'project'       : config[resource]['project'],
                 'queue'         : config[resource]['queue'],
-                'access_schema' : config[resource]['schema']
+                'access_schema' : config[resource]['schema'],
+                'cores'         : config[resource]['cores'],
                 }
         pdesc = rp.ComputePilotDescription(pd_init)
 
