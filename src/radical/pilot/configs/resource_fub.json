@@ -34,4 +34,40 @@
       "module restore"
     ]
   }
+  "allegro_gpu": {
+    "description": "The GPU queue @ FU Berlin 'Allegro' cluster at IMP (http://www.allegro.imp.fu-berlin.de).",
+    "notes": "This one uses a single process per node to allow manual GPU access.",
+    "schemas": [
+      "ssh"
+    ],
+    "mandatory_args": [],
+    "ssh": {
+      "job_manager_endpoint": "slurm+ssh://allegro.imp.fu-berlin.de/",
+      "filesystem_endpoint": "sftp://allegro.imp.fu-berlin.de/"
+    },
+    "default_queue": "gpu",
+    "cores_per_node": 1,
+    "lrms": "SLURM",
+    "agent_type": "multicore",
+    "agent_scheduler": "CONTINUOUS",
+    "agent_spawner": "POPEN",
+    "agent_launch_method": "SSH",
+    "task_launch_method": "RSH",
+    "mpi_launch_method": "MPIEXEC",
+    "pre_bootstrap_1": [],
+    "default_remote_workdir": "$HOME/NO_BACKUP",
+    "valid_roots": [
+      "$HOME",
+      "/data/scratch"
+    ],
+    "rp_version": "local",
+    "virtenv": "%(global_sandbox)s/ve_allegro",
+    "virtenv_mode": "create",
+    "python_dist": "default",
+    "export_to_cu": [
+    ],
+    "cu_pre_exec": [
+      "module restore"
+    ]
+  }
 }
